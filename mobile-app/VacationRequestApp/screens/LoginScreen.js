@@ -1,27 +1,43 @@
 // mobile-app/VacationRequestApp/screens/LoginScreen.js
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { loginUser, getStoredUser } from '../../services/api'; // Adjust path as necessary
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    // TODO: Implement actual login logic (call API)
-    console.log('Login attempt with:', email, password);
+  const handleLogin = async () => {
     if (email === '' || password === '') {
-        Alert.alert('Error', 'Please enter email and password');
-        return;
+      Alert.alert('Error', 'Please enter email and password');
+      return;
     }
-    
-    // Navigate to employee home or supervisor home based on role after successful login
-    if (email.toLowerCase().startsWith('sup')) {
-      Alert.alert('Login Success (Placeholder)', 'Navigating to Supervisor Dashboard...');
-      navigation.replace('SupervisorWorkflow'); // Use replace to avoid back to login
+
+    setIsLoading(true);
+    console.log('Login attempt with:', email, password);
+
+    const result = await loginUser(email, password);
+    setIsLoading(false);
+
+    if (result.success && result.data && result.data.user) {
+      const user = result.data.user; // User object from backend
+      Alert.alert('Login Success', `Welcome ${user.first_name}! Role: ${user.role}`);
+
+      // Navigate based on role
+      if (user.role === 'supervisor' || user.role === 'admin') {
+        navigation.replace('SupervisorWorkflow');
+      } else {
+        navigation.replace('EmployeeTabs');
+      }
     } else {
-      Alert.alert('Login Success (Placeholder)', 'Navigating to Employee Dashboard...');
-      navigation.replace('EmployeeTabs'); // Use replace
+      Alert.alert('Login Failed', result.error || 'An unknown error occurred.');
     }
+  };
+
+  // Optional: Add navigation to a SignupScreen
+  const navigateToSignup = () => {
+    navigation.navigate('Signup'); // Assuming you have a SignupScreen defined in your navigator
   };
 
   return (
@@ -34,6 +50,7 @@ const LoginScreen = ({ navigation }) => {
         onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
+        autoComplete="email"
       />
       <TextInput
         style={styles.input}
@@ -42,16 +59,33 @@ const LoginScreen = ({ navigation }) => {
         onChangeText={setPassword}
         secureTextEntry
       />
-      <Button title="Login" onPress={handleLogin} />
-      {/* TODO: Add signup navigation if applicable */}
+      {isLoading ? (
+        <ActivityIndicator size="large" color="#0000ff" />
+      ) : (
+        <>
+          <Button title="Login" onPress={handleLogin} />
+          <View style={{ marginTop: 10 }} />
+          <Button title="Don't have an account? Sign Up" onPress={navigateToSignup} color="#007bff" />
+        </>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20 },
-  title: { fontSize: 24, marginBottom: 20, textAlign: 'center' },
-  input: { height: 40, borderColor: 'gray', borderWidth: 1, marginBottom: 10, paddingHorizontal: 10 },
+  container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#f5f5f5' },
+  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 24, textAlign: 'center', color: '#333' },
+  input: {
+    height: 50,
+    borderColor: '#ddd',
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 15,
+    paddingHorizontal: 15,
+    backgroundColor: '#fff',
+    fontSize: 16,
+  },
+  // Add styles for buttons if needed, or use default
 });
 
 export default LoginScreen;

@@ -5,6 +5,7 @@ const app = express();
 // Import routes
 const authRoutes = require('./routes/auth.routes');
 const vacationRoutes = require('./routes/vacation.routes');
+const locationRoutes = require('./routes/location.routes'); // Import location routes
 
 app.use(express.json()); // Middleware to parse JSON bodies
 
@@ -23,7 +24,8 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
-app.use('/api/vacation-requests', vacationRoutes); // All vacation routes will be authenticated
+app.use('/api/vacation-requests', vacationRoutes);
+app.use('/api/locations', locationRoutes); // Mount location routes
 
 // Basic error handling
 app.use((err, req, res, next) => {

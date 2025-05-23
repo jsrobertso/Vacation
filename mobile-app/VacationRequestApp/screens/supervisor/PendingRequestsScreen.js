@@ -1,59 +1,118 @@
 // mobile-app/VacationRequestApp/screens/supervisor/PendingRequestsScreen.js
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, Button, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { getSupervisorRequests } from '../../../services/api'; // Adjust path as necessary
 
 const PendingRequestsScreen = ({ navigation }) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // TODO: Fetch actual pending requests for this supervisor from API
-  useEffect(() => {
-    setTimeout(() => {
-      setRequests([
-        { id: '101', employeeName: 'John Doe', userId: 'emp001', startDate: '2024-03-10', endDate: '2024-03-12', reason: 'Conference', status: 'Pending' },
-        { id: '102', employeeName: 'Jane Smith', userId: 'emp002', startDate: '2024-03-15', endDate: '2024-03-17', reason: 'Personal Appointment', status: 'Pending' },
-      ]);
-      setLoading(false);
-    }, 1000);
+  const fetchPendingRequests = async () => {
+    if (!refreshing) setLoading(true);
+    const result = await getSupervisorRequests();
+    if (result.success) {
+      // Filter for pending requests on the client-side as an extra check,
+      // though the backend should ideally only send pending ones.
+      // Sort by requested_date ascending (oldest first to prioritize)
+      const pending = result.data.filter(req => req.status === 'pending')
+                                .sort((a,b) => new Date(a.requested_date) - new Date(b.requested_date));
+      setRequests(pending);
+    } else {
+      Alert.alert('Error', result.error || 'Failed to fetch pending requests.');
+      setRequests([]);
+    }
+    if (!refreshing) setLoading(false);
+    setRefreshing(false);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPendingRequests();
+      return () => {};
+    }, [])
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchPendingRequests();
   }, []);
 
   const handleViewDetails = (request) => {
+    // Pass the full request object. Ensure it's serializable if it contains complex objects.
+    // The request object from Mongoose should be fine.
     navigation.navigate('RequestDetailScreen', { request });
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const options = { year: 'numeric', month: 'short', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString(undefined, options);
+  };
+
+  const renderItem = ({ item }) => (
+    <TouchableOpacity onPress={() => handleViewDetails(item)} style={styles.requestItem}>
+      <Text style={styles.employeeName}>
+        {item.user_id?.first_name || 'N/A'} {item.user_id?.last_name || 'N/A'}
+      </Text>
+      <Text style={styles.detailText}>Employee ID: {item.user_id?.employee_id_internal || 'N/A'}</Text>
+      <Text style={styles.detailText}>Dates: {formatDate(item.start_date)} to {formatDate(item.end_date)}</Text>
+      <Text style={styles.detailText}>Reason: {item.reason || 'N/A'}</Text>
+      <Text style={styles.requestedDateText}>Requested: {formatDate(item.requested_date)}</Text>
+    </TouchableOpacity>
+  );
+
   if (loading) {
-    return <ActivityIndicator size="large" style={styles.loader} />;
+    return <ActivityIndicator size="large" color="#007bff" style={styles.loader} />;
   }
 
   if (requests.length === 0) {
-    return <View style={styles.container}><Text>No pending vacation requests.</Text></View>;
+    return (
+      <View style={styles.centeredMessageContainer}>
+        <Text style={styles.noRequestsText}>No pending vacation requests.</Text>
+        <Button title="Refresh" onPress={fetchPendingRequests} color="#007bff"/>
+      </View>
+    );
   }
 
   return (
     <FlatList
       data={requests}
-      keyExtractor={item => item.id}
-      renderItem={({ item }) => (
-        <TouchableOpacity onPress={() => handleViewDetails(item)} style={styles.requestItem}>
-          <Text style={styles.employeeName}>{item.employeeName}</Text>
-          <Text>Dates: {item.startDate} to {item.endDate}</Text>
-          <Text>Reason: {item.reason}</Text>
-          <View style={styles.buttonContainer}>
-             {/* Button removed as the whole item is touchable */}
-          </View>
-        </TouchableOpacity>
-      )}
+      keyExtractor={item => item._id || item.id}
+      renderItem={renderItem}
       style={styles.container}
+      contentContainerStyle={requests.length === 0 ? styles.centeredMessageContainer : {}}
+      ListEmptyComponent={
+          !loading && <View style={styles.centeredMessageContainer}><Text style={styles.noRequestsText}>No pending vacation requests.</Text></View>
+      }
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#007bff"]}/>
+      }
     />
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 10 },
-  loader: { flex: 1, justifyContent: 'center', alignItems: 'center'},
-  requestItem: { padding: 15, marginVertical: 8, backgroundColor: '#fff', borderColor: '#ddd', borderWidth: 1, borderRadius: 8 },
-  employeeName: { fontSize: 16, fontWeight: 'bold' },
-  buttonContainer: { marginTop: 10 }
+  container: { flex: 1, backgroundColor: '#f0f0f0' },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' },
+  centeredMessageContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  noRequestsText: { fontSize: 18, color: '#555', marginBottom: 10 },
+  requestItem: {
+    backgroundColor: '#fff',
+    padding: 15,
+    marginVertical: 8,
+    marginHorizontal: 10,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  employeeName: { fontSize: 17, fontWeight: 'bold', color: '#333', marginBottom: 5 },
+  detailText: { fontSize: 15, color: '#555', marginBottom: 3 },
+  requestedDateText: { fontSize: 13, color: '#777', marginTop: 5, fontStyle: 'italic' },
 });
 
 export default PendingRequestsScreen;

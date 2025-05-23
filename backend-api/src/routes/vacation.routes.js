@@ -2,24 +2,30 @@
 const express = require('express');
 const router = express.Router();
 const vacationController = require('../controllers/vacation.controller');
+const { protect, authorize } = require('../middleware/auth.middleware'); // Import actual middleware
 
-// Placeholder Authentication Middleware
-const authMiddleware = (req, res, next) => {
-  console.log('Auth middleware placeholder hit for /api/vacation-requests');
-  // Simulate user authentication for now
-  // In a real app, this would verify a JWT or session
-  // req.user = { id: 'mockUserId123', role: 'employee', location_id: 'loc1' }; // Example employee
-  // req.user = { id: 'mockSupervisorId456', role: 'supervisor', location_id: 'loc1' }; // Example supervisor
-  next();
-};
+// Apply the 'protect' middleware to all vacation routes by default.
+// This ensures that a user must be logged in to access any of these endpoints.
+router.use(protect);
 
-// Apply auth middleware to all vacation routes
-router.use(authMiddleware);
-
+// Route to submit a new vacation request
+// Accessible by any authenticated user (employee, supervisor, admin)
 router.post('/', vacationController.submitRequest);
-router.get('/employee', vacationController.getEmployeeRequests); // Gets requests for the logged-in employee
-router.get('/supervisor', vacationController.getSupervisorRequests); // Gets requests for the logged-in supervisor
-router.put('/:id/approve', vacationController.approveRequest); // Supervisor action
-router.put('/:id/reject', vacationController.rejectRequest);   // Supervisor action
+
+// Route to get all vacation requests for the logged-in employee
+// Accessible by any authenticated user (primarily for 'employee' role)
+router.get('/employee', vacationController.getEmployeeRequests);
+
+// Route to get pending vacation requests for a supervisor's team
+// Accessible only by users with 'supervisor' or 'admin' roles
+router.get('/supervisor', authorize('supervisor', 'admin'), vacationController.getSupervisorRequests);
+
+// Route to approve a vacation request
+// Accessible only by users with 'supervisor' or 'admin' roles
+router.put('/:id/approve', authorize('supervisor', 'admin'), vacationController.approveRequest);
+
+// Route to reject a vacation request
+// Accessible only by users with 'supervisor' or 'admin' roles
+router.put('/:id/reject', authorize('supervisor', 'admin'), vacationController.rejectRequest);
 
 module.exports = router;

@@ -1,11 +1,19 @@
-/**
- * @typedef {object} Location
- * @property {string} location_id - Primary Key (e.g., UUID)
- * @property {string} name - e.g., "Headquarters", "North Office"
- * @property {string} [address] - Optional
- * @property {Date} created_at - Timestamp
- * @property {Date} updated_at - Timestamp
- */
+const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
-// Placeholder for actual database model/schema definition
-module.exports = {};
+const LocationSchema = new Schema({
+  name: {
+    type: String,
+    required: [true, 'Location name is required.'],
+    trim: true,
+  },
+  address: {
+    type: String,
+    trim: true,
+  },
+}, { timestamps: true });
+
+// Indexing for frequently queried fields
+LocationSchema.index({ name: 1 });
+
+module.exports = mongoose.model('Location', LocationSchema);

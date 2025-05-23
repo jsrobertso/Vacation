@@ -1,18 +1,72 @@
-/**
- * @typedef {object} VacationRequest
- * @property {string} request_id - Primary Key (e.g., UUID)
- * @property {string} user_id - Foreign Key to User model (employee making request)
- * @property {Date} start_date
- * @property {Date} end_date
- * @property {string} [reason] - Optional
- * @property {'pending' | 'approved' | 'rejected' | 'cancelled'} status
- * @property {Date} requested_date - Timestamp of submission
- * @property {string} [approved_by_id] - Foreign Key to User model (supervisor who actioned, nullable)
- * @property {Date} [actioned_date] - Timestamp of approval/rejection (nullable)
- * @property {string} [supervisor_comments] - Optional comments from supervisor
- * @property {Date} created_at - Timestamp
- * @property {Date} updated_at - Timestamp
- */
+const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
-// Placeholder for actual database model/schema definition
-module.exports = {};
+const VacationRequestSchema = new Schema({
+  user_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'User ID is required.'],
+  },
+  start_date: {
+    type: Date,
+    required: [true, 'Start date is required.'],
+  },
+  end_date: {
+    type: Date,
+    required: [true, 'End date is required.'],
+    validate: [
+      function(value) {
+        // 'this' refers to the document being validated
+        return this.start_date < value;
+      },
+      'End date must be after start date.'
+    ]
+  },
+  reason: {
+    type: String,
+    trim: true,
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', 'cancelled'],
+    required: true,
+    default: 'pending',
+  },
+  requested_date: {
+    type: Date,
+    default: Date.now,
+  },
+  approved_by_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  actioned_date: {
+    type: Date,
+    default: null,
+  },
+  supervisor_comments: {
+    type: String,
+    trim: true,
+  },
+}, { timestamps: true });
+
+// Indexing for frequently queried fields
+VacationRequestSchema.index({ user_id: 1 });
+VacationRequestSchema.index({ status: 1 });
+VacationRequestSchema.index({ approved_by_id: 1 });
+VacationRequestSchema.index({ start_date: 1, end_date: 1 });
+
+
+// Ensure end_date is after start_date using a pre-save hook as well, for robustness
+// Mongoose schema-level validation (like above) is generally preferred for this.
+// This is more of an example if complex logic was needed.
+VacationRequestSchema.pre('save', function(next) {
+  if (this.start_date && this.end_date && this.start_date >= this.end_date) {
+    next(new Error('End date must be after start date.'));
+  } else {
+    next();
+  }
+});
+
+module.exports = mongoose.model('VacationRequest', VacationRequestSchema);
